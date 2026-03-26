@@ -1,0 +1,50 @@
+---
+description: Core project rules for the Infleet AI Support Agent MVP
+alwaysApply: true
+---
+
+# Infleet Project Rules
+
+## 1. Read Documentation First
+
+Before making ANY code changes, read `Documentation/Claude.md` — it is the master project brief.
+Only read the other Documentation/ files when you need deeper detail that Claude.md doesn't cover.
+Do NOT read all 7 files on every request — that wastes context window.
+
+Do NOT skip this step. Do NOT assume you know the project structure. Read the docs, then act.
+
+## 2. Plan Before Coding
+
+Before writing or editing any code:
+1. State in 2-3 sentences what you will change and which layers it touches (Router/Controller/Service/Repository/Frontend).
+2. List the files you will modify.
+3. If the change is large (3+ files), create a TODO list with ordered steps.
+4. Only then start implementing.
+
+Never jump straight into code edits without confirming the plan.
+
+## 3. Context Window Management
+
+- Compress conversation history aggressively. Summarize completed work rather than repeating it.
+- When the context is getting long, proactively summarize what was done and what remains.
+- Do NOT re-read files you have already read in the same conversation unless they were modified.
+
+## 4. Use Subagents for Parallel Work
+
+- When exploring multiple parts of the codebase, launch parallel subagents (explore type) instead of reading files one by one.
+- When making independent changes across backend and frontend, consider parallel subagents.
+- Use the `fast` model for simple, scoped subagent tasks to save cost and time.
+
+## 5. Use Available Skills
+
+- Check available skills before starting work. Use them when relevant (e.g., OpenAI docs skill for API questions, rule creation skill for new rules).
+- Do not reinvent what a skill already provides.
+
+## 6. Architecture Constraints (from Claude.md)
+
+- **Layered architecture:** Router → Controller → Service → Repository. Strictly one-way downward.
+- **Models** never leave the repository layer. **Schemas** cross every boundary.
+- **Async everywhere** — no sync code in the request path.
+- **No LangChain, no LlamaIndex** — direct OpenAI SDK only.
+- **Native fetch()** on frontend — no axios.
+- **Zero hallucination:** If a schema, table, or API structure hasn't been provided, ask — don't invent.

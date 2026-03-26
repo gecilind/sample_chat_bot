@@ -294,8 +294,13 @@ export function ChatInterface({ onBack }: ChatInterfaceProps) {
         ))}
         {isLoading ? (
           <div className="flex justify-start">
-            <div className="bg-white border border-slate-200 text-slate-500 text-sm p-3.5 rounded-md rounded-tl-none max-w-[85%] shadow-sm leading-relaxed italic">
-              Thinking...
+            <div className="bg-white border border-slate-200 text-slate-500 text-sm p-3.5 rounded-md rounded-tl-none max-w-[85%] shadow-sm leading-relaxed flex items-center gap-1.5">
+              <span className="inline-flex gap-1">
+                <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+              </span>
+              <span className="italic ml-1">Thinking...</span>
             </div>
           </div>
         ) : null}

@@ -10,6 +10,7 @@ from api.controllers.chat_controller import ChatController
 from api.controllers.conversation_controller import ConversationController
 from api.controllers.health_controller import HealthController
 from api.controllers.ingest_controller import IngestController
+from api.controllers.manual_controller import ManualController
 from config import Settings, get_settings
 from repositories.conversation_repository import ConversationRepository
 from repositories.health_repository import HealthRepository
@@ -20,6 +21,7 @@ from services.embedding_service import EmbeddingService
 from services.health_service import HealthService
 from services.ingestion_service import IngestionService
 from services.kb_service import KBService
+from services.manual_service import ManualService
 
 
 def get_app_settings() -> Settings:
@@ -66,6 +68,14 @@ def get_ingestion_service(
 
 def get_ingest_controller(ingestion_service: IngestionService = Depends(get_ingestion_service)) -> IngestController:
     return IngestController(ingestion_service)
+
+
+def get_manual_service(manual_repository: ManualRepository = Depends(get_manual_repository)) -> ManualService:
+    return ManualService(manual_repository)
+
+
+def get_manual_controller(manual_service: ManualService = Depends(get_manual_service)) -> ManualController:
+    return ManualController(manual_service)
 
 
 def get_conversation_repository(session: AsyncSession = Depends(get_supabase_session)) -> ConversationRepository:
