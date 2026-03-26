@@ -21,6 +21,83 @@ interface ChatApiResponse {
   sources: string[];
 }
 
+/** Strip common inline markdown; keep visible text only. */
+function stripInlineMarkdown(s: string): string {
+  let t = s;
+  t = t.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
+  t = t.replace(/\*\*(.+?)\*\*/g, '$1');
+  t = t.replace(/__(.+?)__/g, '$1');
+  t = t.replace(/`([^`]+)`/g, '$1');
+  t = t.replace(/\*(.+?)\*/g, '$1');
+  t = t.replace(/_(.+?)_/g, '$1');
+  return t;
+}
+
+/** Remove markdown markers and normalize list lines to leading "• " for display. */
+function normalizeAssistantText(raw: string): string {
+  const lines = raw.split(/\r?\n/);
+  const out: string[] = [];
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed === '') {
+      out.push('');
+      continue;
+    }
+    if (/^-{3,}$/.test(trimmed)) {
+      out.push('');
+      continue;
+    }
+    const heading = trimmed.match(/^#{1,6}\s+(.+)$/);
+    if (heading) {
+      out.push(stripInlineMarkdown(heading[1]));
+      continue;
+    }
+    const bullet = trimmed.match(/^[-*+]\s+(.+)$/);
+    if (bullet) {
+      out.push('• ' + stripInlineMarkdown(bullet[1]));
+      continue;
+    }
+    const ordered = trimmed.match(/^\d+\.\s+(.+)$/);
+    if (ordered) {
+      out.push('• ' + stripInlineMarkdown(ordered[1]));
+      continue;
+    }
+    out.push(stripInlineMarkdown(trimmed));
+  }
+  return out.join('\n');
+}
+
+function renderAssistantMessage(text: string): React.ReactNode {
+  if (!text) {
+    return null;
+  }
+  const lines = text.split('\n');
+  return (
+    <div className="space-y-2">
+      {lines.map((line, idx) => {
+        if (line.trim() === '') {
+          return <div key={idx} className="h-1.5 shrink-0" aria-hidden />;
+        }
+        if (line.startsWith('• ')) {
+          return (
+            <div key={idx} className="flex gap-2 items-start">
+              <span className="shrink-0 text-slate-600 select-none" aria-hidden>
+                •
+              </span>
+              <span className="flex-1 min-w-0 leading-relaxed">{line.slice(2)}</span>
+            </div>
+          );
+        }
+        return (
+          <p key={idx} className="leading-relaxed m-0 first:mt-0">
+            {line}
+          </p>
+        );
+      })}
+    </div>
+  );
+}
+
 interface TypewriterTextProps {
   fullText: string;
   speed?: number;
@@ -56,7 +133,7 @@ function TypewriterText({ fullText, speed = 15, onComplete, onProgress }: Typewr
     return () => clearInterval(timer);
   }, [fullText, speed]);
 
-  return <>{displayedText}</>;
+  return <>{renderAssistantMessage(displayedText)}</>;
 }
 
 interface ChatInterfaceProps {
@@ -276,7 +353,7 @@ export function ChatInterface({ onBack }: ChatInterfaceProps) {
                 <div className="bg-white border border-slate-200 text-slate-900 text-sm p-3.5 rounded-md rounded-tl-none shadow-sm leading-relaxed">
                   {msg.role === 'assistant' && msg.id === animatingMessageId ? (
                     <TypewriterText
-                      fullText={msg.content}
+                      fullText={normalizeAssistantText(msg.content)}
                       speed={15}
                       onProgress={scrollToBottom}
                       onComplete={() => {
@@ -285,7 +362,7 @@ export function ChatInterface({ onBack }: ChatInterfaceProps) {
                       }}
                     />
                   ) : (
-                    msg.content
+                    renderAssistantMessage(normalizeAssistantText(msg.content))
                   )}
                 </div>
               </div>
