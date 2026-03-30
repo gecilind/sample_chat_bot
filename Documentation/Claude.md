@@ -18,7 +18,7 @@ You are a **Senior Technical Co-Pilot and Lead Solutions Architect** working wit
 
 **Client:** Infleet — requires an AI-driven hardware/software support agent for GPS tracking devices.
 
-**Product:** A chatbot that answers user questions from an ingested knowledge base (RAG), and when it cannot answer, escalates to human support via Jira ticket creation after verifying device warranty status.
+**Product:** A chatbot that answers user questions from an ingested knowledge base (RAG), and when it cannot answer, escalates to human support via Jira ticket creation.
 
 **Timeline:**
 - **Phase 1 (Current — 24 Days):** Web Chat MVP
@@ -43,7 +43,6 @@ Every technical decision must be optimized for the Phase 1 deadline. If a featur
 | **Backend** | Python + FastAPI | All business logic lives here. Async everywhere |
 | **Database** | Supabase PostgreSQL | Stores conversations, embeddings, ticket references |
 | **ORM** | SQLAlchemy 2.0 async + `pgvector.sqlalchemy` | No raw SQL for our DB. Raw `asyncpg` only for Infleet's external DB |
-| **Warranty Data** | Infleet's external Postgres DB | Read-only, accessed via raw `asyncpg` pool |
 | **Ticketing** | Jira REST API via `httpx` | No SDK, no middleware |
 | **Voice Transport** | OpenAI Realtime API via WebSocket relay (`/voice-relay`) | Phase 2. No telephony, no Twilio, no Vapi |
 
@@ -58,7 +57,7 @@ backend/
 ├── main.py                     # App factory, lifespan, pool init, middleware + routers
 ├── config.py                   # pydantic-settings (validated at startup)
 ├── core/
-│   └── exceptions.py           # AppError base + JiraAPIError, WarrantyLookupError, KBSearchError, AIServiceError, IngestionError
+│   └── exceptions.py           # AppError base + JiraAPIError, KBSearchError, AIServiceError, IngestionError
 ├── middleware/
 │   ├── request_handler.py      # Logs requests, assigns correlation ID, catches unhandled exceptions
 │   └── cors.py                 # CORS headers for React widget
@@ -73,7 +72,6 @@ backend/
 │   ├── conversation.py         # ConversationResponse, MessageResponse
 │   ├── kb.py                   # KBSearchResult
 │   ├── ingestion.py            # IngestRequest, IngestResponse
-│   ├── warranty.py             # WarrantyCheckRequest, WarrantyCheckResult (future)
 │   └── ticket.py               # TicketCreateRequest, TicketCreateResponse (future)
 ├── db/
 │   ├── supabase_pool.py        # SQLAlchemy async engine + session factory
@@ -210,6 +208,7 @@ User message → React frontend
        - LOW (>= 0.40 < 0.60): Answer from KB with "not fully certain" prefix
        - NONE (< 0.40): Send to OpenAI without KB context (general conversation via system prompt)
     6. Send to OpenAI gpt-4o-mini with system prompt + conversation history + KB context (if any)
+       - If escalation is needed and device identification is missing, the AI asks for the device serial number or vehicle name during conversation before creating a ticket
     7. Save assistant response to DB with confidence_tier
     8. Log: question, similarity scores, tier, source section
     9. Return response to frontend
@@ -218,10 +217,13 @@ User message → React frontend
 ### Escalation Path (Production — not in test env)
 
 ```
-No KB answer found → POST /check-warranty (Infleet's DB)
-  → if warranty valid → POST /create-ticket (Jira REST API)
-  → ticket assigned to human worker
+KB search fails → AI cannot resolve
+  → collect device info (serial number or vehicle name)
+  → POST /create-ticket (Jira REST API)
+  → human agent handles it
 ```
+
+Device identification is handled by the AI during conversation — the user is asked to provide their device serial number or vehicle name before a ticket is created.
 
 ### Ingestion Path
 
@@ -243,9 +245,10 @@ The AI operates under a detailed system prompt stored as `SYSTEM_PROMPT` in `cha
 
 - **Identity:** Infleet AI Support Agent. Introduces itself on first message with varied greetings.
 - **Knowledge rules:** Answers strictly from KB context when provided. Uses general knowledge with disclaimer when no context. Never invents specs or procedures.
+- **Escalation awareness:** Escalates ANY unresolved issue after KB is exhausted (not just hardware), collects device serial/vehicle name + issue description before escalation.
 - **Response structure:** Numbered steps for how-to, troubleshooting leads with most likely fix, asks clarifying questions for vague input.
 - **Tone:** Professional, direct, no filler phrases, no emojis, under 150 words unless detailed steps needed.
-- **Safety:** Never instructs to open device casing. No legal advice on warranties. No speculation on unreleased features.
+- **Safety:** Never instructs to open device casing. No legal advice on service terms. No speculation on unreleased features.
 - **Closing:** "Is there anything else I can help you with?" only when answer is complete.
 
 ---
@@ -316,7 +319,6 @@ Rules:
 | `JIRA_EMAIL` | Jira service account email (future) |
 | `JIRA_API_TOKEN` | Jira API token (future) |
 | `JIRA_PROJECT_KEY` | Jira project key for ticket creation (future) |
-| `INFLEET_DB_URL` | Connection string to Infleet's warranty DB (future) |
 
 ---
 
@@ -353,8 +355,7 @@ Rules:
 If a schema, table name, column name, or API structure has not been provided, **do not invent it**. State exactly what information is needed before writing the code.
 
 Specifically:
-- Infleet's warranty table schema is **not yet confirmed** — always flag this before writing any warranty query.
-- The `window.__INFLEET_USER__` shape is **TBD** — to be confirmed with Arbios/Infleet.
+- The `window.__INFLEET_USER__` shape includes only `{ userId, email }` (device identification is handled during conversation by the AI).
 
 ---
 
@@ -374,8 +375,8 @@ Specifically:
 
 ### Not Yet Built (Intentionally Skipped for Test Env)
 - User authentication (`window.__INFLEET_USER__`)
-- Warranty check route (`POST /check-warranty` → Infleet's external DB)
 - Jira ticket creation (`POST /create-ticket`)
+- Device identification happens during conversation (AI asks for device serial/vehicle name before ticket creation)
 - Voice path (Phase 2: `/voice-relay`, Realtime API, AudioWorklet)
 - Query reformulation (rewrite vague user messages using conversation context before KB search)
 - AI-guided clarification system (proactive narrowing of vague problems)
